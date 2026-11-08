@@ -1,0 +1,64 @@
+name: silin
+
+services:
+  app:
+    build: .
+    command:
+      - sh
+      - -ec
+      - |
+        chown www-data:www-data storage/app/private/order-images storage/app/private/order-logs storage/app/public/constructor-catalog
+        php artisan migrate --force
+        exec apache2-foreground
+    environment:
+      APP_NAME: ${APP_NAME:-ConstructNH}
+      APP_ENV: local
+      APP_KEY: ${APP_KEY:?Set APP_KEY in .env}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_URL: ${APP_URL:-http://localhost:${APP_PORT:-8000}}
+      APP_LOCALE: ${APP_LOCALE:-ru}
+      CATALOG_WRITE_TOKEN: ${CATALOG_WRITE_TOKEN:-}
+      SESSION_COOKIE: ${SESSION_COOKIE:-silin-session}
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-silin}
+      DB_USERNAME: ${DB_USERNAME:-silin}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:80"
+    volumes:
+      - ./storage/app/private/order-images:/var/www/html/storage/app/private/order-images
+      - ./storage/app/private/order-logs:/var/www/html/storage/app/private/order-logs
+      - ./storage/app/public/constructor-catalog:/var/www/html/storage/app/public/constructor-catalog
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1/up"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-silin}
+      MYSQL_USER: ${DB_USERNAME:-silin}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - ./data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          MYSQL_PWD="$$MYSQL_PASSWORD"
+          mysql --protocol=TCP --host=127.0.0.1 --user="$$MYSQL_USER"
+          --database="$$MYSQL_DATABASE" --execute='SELECT 1' >/dev/null
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s

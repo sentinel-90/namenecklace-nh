@@ -1,0 +1,356 @@
+{
+    "openapi": "3.1.1",
+    "info": {
+        "title": "ConstructNH API",
+        "version": "1.0.0",
+        "description": "Каталог компонентов, приём заказов и логов из конструктора. Пробные запросы в Swagger UI выполняются в текущем окружении."
+    },
+    "paths": {
+        "/api/v1/constructor/catalog": {
+            "get": {
+                "operationId": "getConstructorCatalog",
+                "tags": ["Конструктор"],
+                "summary": "Получить каталог компонентов",
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "required": false,
+                        "description": "Тип компонента. При фильтрации массивы разделов содержат только детали выбранного типа. Без фильтра возвращаются детали всех типов.",
+                        "schema": { "$ref": "#/components/schemas/CatalogItemType" }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Объект с массивами компонентов по slug разделов. Разделы без подходящих компонентов содержат пустые массивы.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/ConstructorCatalog" }
+                            }
+                        }
+                    },
+                    "422": { "description": "Недопустимое значение параметра type" }
+                }
+            },
+            "post": {
+                "operationId": "storeConstructorCatalogItem",
+                "tags": ["Конструктор"],
+                "summary": "Создать компонент каталога по ссылкам на изображения",
+                "security": [{ "CatalogWriteToken": [] }],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["section", "type", "name", "price", "image_url", "preview_url"],
+                                "properties": {
+                                    "section": { "type": "string", "enum": ["silver", "gold_plated", "gold", "white_gold", "red_gold"] },
+                                    "type": { "$ref": "#/components/schemas/CatalogItemType" },
+                                    "name": { "type": "string", "maxLength": 255 },
+                                    "price": { "type": ["number", "string"], "description": "Цена в рублях." },
+                                    "image_url": { "type": "string", "format": "uri" },
+                                    "preview_url": { "type": "string", "format": "uri" },
+                                    "top": { "type": "boolean", "description": "Применяется к фигурке справа." }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Компонент создан",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["data"],
+                                    "properties": { "data": { "$ref": "#/components/schemas/CatalogItem" } }
+                                }
+                            }
+                        }
+                    },
+                    "401": { "description": "Требуется токен записи каталога" },
+                    "415": { "description": "Запрос нужно отправить в формате JSON" },
+                    "422": { "description": "Некорректные данные или ошибка загрузки изображения" },
+                    "429": { "description": "Превышен лимит запросов" }
+                }
+            }
+        },
+        "/api/v1/log/{order}": {
+            "post": {
+                "operationId": "storeOrderLog",
+                "tags": ["Заказы"],
+                "summary": "Сохранить лог заказа",
+                "description": "Сохраняет JSON в файл с номером заказа и записывает символы Unicode в UTF-8. Повторная отправка заменяет предыдущий файл.",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "description": "Номер существующего заказа.",
+                        "schema": { "type": "integer", "minimum": 1 }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "description": "Произвольный JSON размером до 8 МБ.",
+                    "content": {
+                        "application/json": {
+                            "schema": {},
+                            "example": { "event": "order_created", "source": "constructor" }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": { "description": "Лог сохранён" },
+                    "400": { "description": "Некорректный JSON" },
+                    "404": { "description": "Заказ не найден" },
+                    "413": { "description": "Превышен максимальный размер запроса" },
+                    "415": { "description": "Запрос нужно отправить в формате JSON" },
+                    "429": { "description": "Превышен лимит в 20 запросов в минуту" },
+                    "500": { "description": "Не удалось сохранить лог заказа" }
+                }
+            }
+        },
+        "/api/v1/orders": {
+            "post": {
+                "operationId": "storeOrder",
+                "tags": ["Заказы"],
+                "summary": "Создать заказ",
+                "description": "Эндпоинт доступен без авторизации. Для запросов из конструктора разрешён источник https://namenecklace.ru.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": { "$ref": "#/components/schemas/OrderRequest" },
+                            "example": {
+                                "name": "Тестовый клиент",
+                                "email": "customer@example.test",
+                                "phone": "+79001234567",
+                                "delivery": "Самовывоз",
+                                "payment": "isCash",
+                                "price": 21400,
+                                "text": "Julia",
+                                "sparking": false,
+                                "attachment": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a0kAAAAASUVORK5CYII="
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Заказ создан",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["id", "status"],
+                                    "properties": {
+                                        "id": { "type": "integer", "minimum": 1 },
+                                        "status": { "type": "string", "const": "new" }
+                                    }
+                                },
+                                "example": { "id": 1, "status": "new" }
+                            }
+                        }
+                    },
+                    "415": { "description": "Запрос нужно отправить в формате JSON" },
+                    "422": {
+                        "description": "Ошибка валидации",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["message", "errors"],
+                                    "properties": {
+                                        "message": { "type": "string" },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": { "type": "string" }
+                                            }
+                                        }
+                                    }
+                                },
+                                "example": {
+                                    "message": "Приложите изображение изделия в Base64.",
+                                    "errors": { "attachment": ["Приложите изображение изделия в Base64."] }
+                                }
+                            }
+                        }
+                    },
+                    "429": { "description": "Превышен лимит в 20 запросов в минуту" }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "CatalogWriteToken": { "type": "http", "scheme": "bearer" }
+        },
+        "schemas": {
+            "ConstructorCatalog": {
+                "type": "object",
+                "required": ["silver", "gold_plated", "gold", "white_gold", "red_gold"],
+                "additionalProperties": false,
+                "properties": {
+                    "silver": { "$ref": "#/components/schemas/CatalogItems" },
+                    "gold_plated": { "$ref": "#/components/schemas/CatalogItems" },
+                    "gold": { "$ref": "#/components/schemas/CatalogItems" },
+                    "white_gold": { "$ref": "#/components/schemas/CatalogItems" },
+                    "red_gold": { "$ref": "#/components/schemas/CatalogItems" }
+                }
+            },
+            "CatalogItems": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/CatalogItem" }
+            },
+            "CatalogItemType": {
+                "type": "string",
+                "enum": ["charm", "right_figure", "bottom_figure", "chain"]
+            },
+            "CatalogItem": {
+                "type": "object",
+                "required": ["id", "type", "name", "price", "image", "preview"],
+                "properties": {
+                    "id": { "type": "integer", "minimum": 1 },
+                    "type": { "$ref": "#/components/schemas/CatalogItemType" },
+                    "name": { "type": "string" },
+                    "price": { "type": "number", "minimum": 0, "description": "Цена в рублях." },
+                    "image": { "$ref": "#/components/schemas/CatalogImage" },
+                    "preview": { "$ref": "#/components/schemas/CatalogImage" },
+                    "top": { "type": "boolean", "description": "Поле присутствует только у фигурок справа." }
+                },
+                "if": { "properties": { "type": { "const": "right_figure" } } },
+                "then": { "required": ["top"] },
+                "else": { "not": { "required": ["top"] } }
+            },
+            "CatalogImage": {
+                "type": "object",
+                "required": ["height", "path", "width"],
+                "properties": {
+                    "height": { "type": "integer", "minimum": 1, "description": "Высота в пикселях." },
+                    "path": { "type": "string", "format": "uri", "description": "Публичный URL файла." },
+                    "width": { "type": "integer", "minimum": 1, "description": "Ширина в пикселях." }
+                }
+            },
+            "OrderRequest": {
+                "type": "object",
+                "required": ["name", "email", "phone", "delivery", "payment", "price", "attachment"],
+                "if": { "properties": { "delivery": { "not": { "const": "Самовывоз" } } } },
+                "then": {
+                    "required": ["address"],
+                    "properties": { "address": { "type": "string", "minLength": 1 } }
+                },
+                "properties": {
+                    "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+                    "email": { "type": "string", "format": "email", "maxLength": 255 },
+                    "phone": {
+                        "type": "string",
+                        "maxLength": 32,
+                        "pattern": "^\\+?(?:[() .-]*[0-9]){7,15}$",
+                        "description": "Телефон из 7–15 цифр. Допустимы начальный плюс, пробелы, скобки, точки и дефисы."
+                    },
+                    "delivery": {
+                        "type": "string",
+                        "enum": [
+                            "Самовывоз",
+                            "Доставка по Москве в пределах МКАД",
+                            "Доставка в Санкт-Петербург",
+                            "Доставка в Санкт Петербург",
+                            "Доставка по России"
+                        ]
+                    },
+                    "address": {
+                        "type": ["string", "null"],
+                        "maxLength": 500,
+                        "description": "Адрес обязателен для доставки."
+                    },
+                    "payment": {
+                        "type": "string",
+                        "enum": ["isCash", "isDolyame"],
+                        "description": "isCash — оплата картой, isDolyame — оплата Долями."
+                    },
+                    "price": {
+                        "description": "Цена в рублях, до 10 цифр до десятичной точки и до двух после неё.",
+                        "anyOf": [
+                            { "type": "number", "minimum": 0, "maximum": 9999999999.99, "multipleOf": 0.01 },
+                            { "type": "string", "pattern": "^[0-9]{1,10}(?:\\.[0-9]{1,2})?$" }
+                        ]
+                    },
+                    "promocode": { "type": ["string", "null"], "maxLength": 255 },
+                    "comment": { "type": ["string", "null"], "maxLength": 10000 },
+                    "text": { "type": ["string", "null"], "maxLength": 255 },
+                    "textFont": { "type": ["string", "null"], "maxLength": 255 },
+                    "metaltype": { "type": ["string", "null"], "maxLength": 255, "description": "Металл в запросе без composition. Для состава из каталога металл определяется по composition.section." },
+                    "coating": { "type": ["string", "null"], "maxLength": 255 },
+                    "sparking": { "type": "boolean", "default": false, "description": "Сияющее покрытие." },
+                    "composition": { "$ref": "#/components/schemas/OrderComposition" },
+                    "rightimg": { "$ref": "#/components/schemas/StorefrontImageUrl", "description": "Фигурка справа в запросе без composition." },
+                    "bottomimg": { "$ref": "#/components/schemas/StorefrontImageUrl", "description": "Фигурка снизу в запросе без composition." },
+                    "charmimg": { "$ref": "#/components/schemas/StorefrontImageUrl", "description": "Шарм в запросе без composition." },
+                    "circuit": { "type": ["string", "null"], "maxLength": 255, "description": "Цепочка в запросе без composition." },
+                    "circuitLength": { "type": ["string", "null"], "maxLength": 64, "description": "Длина цепочки. Можно указать независимо от выбора цепочки.", "example": "40 см" },
+                    "noCircuit": { "type": "boolean", "default": false, "description": "Признак отсутствия цепочки в запросе без composition." },
+                    "stones": {
+                        "type": ["array", "null"],
+                        "items": { "$ref": "#/components/schemas/Stone" }
+                    },
+                    "attachment": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 6990508,
+                        "contentEncoding": "base64",
+                        "description": "Изображение изделия в JPEG, PNG или WebP до 5 МБ после декодирования. Передавайте чистый Base64 без префикса data:."
+                    }
+                }
+            },
+            "OrderComposition": {
+                "type": "object",
+                "description": "Выбор деталей из каталога. Все переданные ID должны соответствовать своим позициям и указанному разделу. Для пропуска позиции опустите поле или передайте null.",
+                "required": ["section"],
+                "additionalProperties": false,
+                "properties": {
+                    "section": { "type": "string", "enum": ["silver", "gold_plated", "gold", "white_gold", "red_gold"], "description": "Slug раздела каталога." },
+                    "charm_id": { "type": ["integer", "null"], "minimum": 1 },
+                    "right_figure_id": { "type": ["integer", "null"], "minimum": 1 },
+                    "bottom_figure_id": { "type": ["integer", "null"], "minimum": 1 },
+                    "chain_id": { "type": ["integer", "null"], "minimum": 1 }
+                },
+                "example": { "section": "silver", "charm_id": 42, "right_figure_id": 17, "bottom_figure_id": null, "chain_id": 8 }
+            },
+            "StorefrontImageUrl": {
+                "type": ["string", "null"],
+                "format": "uri",
+                "maxLength": 2048,
+                "pattern": "^https://[nN][aA][mM][eE][nN][eE][cC][kK][lL][aA][cC][eE]\\.[rR][uU](?::443)?(?:[/?#]|$)"
+            },
+            "Stone": {
+                "type": "object",
+                "required": ["type", "size"],
+                "additionalProperties": false,
+                "if": { "properties": { "type": { "const": "swarovski" } } },
+                "then": {
+                    "required": ["color"],
+                    "properties": { "color": { "type": "string", "minLength": 1, "maxLength": 64 } }
+                },
+                "properties": {
+                    "type": { "type": "string", "enum": ["diamonds", "swarovski"] },
+                    "size": { "type": "string", "minLength": 1, "maxLength": 64 },
+                    "color": { "description": "Обязателен для swarovski. Для diamonds не сохраняется." },
+                    "image": {
+                        "type": ["string", "null"],
+                        "maxLength": 2048,
+                        "description": "Путь от корня сайта или HTTPS-ссылка на изображение с namenecklace.ru."
+                    },
+                    "x": { "type": ["number", "null"] },
+                    "y": { "type": ["number", "null"] },
+                    "width": { "type": ["number", "null"], "minimum": 0 },
+                    "height": { "type": ["number", "null"], "minimum": 0 }
+                }
+            }
+        }
+    }
+}

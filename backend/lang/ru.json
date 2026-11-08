@@ -1,0 +1,11 @@
+{
+    "Bad Request": "Некорректный запрос",
+    "Unauthorized": "Требуется вход",
+    "Payment Required": "Требуется оплата",
+    "Forbidden": "Доступ запрещён",
+    "Not Found": "Страница не найдена",
+    "Page Expired": "Срок действия страницы истёк",
+    "Too Many Requests": "Слишком много запросов",
+    "Server Error": "Ошибка сервера",
+    "Service Unavailable": "Сервис недоступен"
+}

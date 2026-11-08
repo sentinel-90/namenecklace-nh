@@ -1,0 +1,19 @@
+# Локальная конфигурация, данные и файлы, созданные приложением.
+.env
+.env.*
+auth.json
+/data/
+/storage/
+/bootstrap/cache/
+/database/*.sqlite*
+
+# Зависимости и результаты сборки.
+/.graphify-tools/
+/graphify-out/
+/node_modules/
+/vendor/
+/public/build/
+/public/css/filament/
+/public/fonts/filament/
+/public/js/filament/
+/public/storage
